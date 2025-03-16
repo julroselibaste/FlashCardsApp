@@ -10,22 +10,11 @@ import {
   Modal,
   SafeAreaView,
   StatusBar,
-  Alert,
-  ToastAndroid,
-  Platform
+  Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = '@flashcards';
-
-// Helper function for showing feedback
-const showFeedback = (message) => {
-  if (Platform.OS === 'android') {
-    ToastAndroid.show(message, ToastAndroid.SHORT);
-  } else {
-    console.log(message);
-  }
-};
 
 export default function App() {
   const [cards, setCards] = useState([]);
@@ -36,61 +25,34 @@ export default function App() {
   const [studyMode, setStudyMode] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  // Add a trigger to force component update after state changes
-  const [forceUpdateKey, setForceUpdateKey] = useState(0);
 
-  // Load cards when component mounts or forceUpdateKey changes
   useEffect(() => {
     loadCards();
-  }, [forceUpdateKey]);
+  }, []);
 
   // Load cards from AsyncStorage
   const loadCards = async () => {
-    setIsLoading(true);
     try {
       const storedCards = await AsyncStorage.getItem(STORAGE_KEY);
-      console.log('Loaded cards from storage:', storedCards);
-      
       if (storedCards !== null) {
-        const parsedCards = JSON.parse(storedCards);
-        setCards(parsedCards);
-        console.log(`Successfully loaded ${parsedCards.length} cards`);
-      } else {
-        console.log('No cards found in storage, starting with empty array');
-        setCards([]);
+        setCards(JSON.parse(storedCards));
       }
     } catch (error) {
-      console.error('Failed to load cards:', error);
-      Alert.alert(
-        'Error Loading Cards', 
-        'There was a problem loading your flashcards.'
-      );
-      setCards([]);
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', 'Failed to load cards');
     }
   };
 
   // Save cards to AsyncStorage
   const saveCards = async (updatedCards) => {
     try {
-      const jsonValue = JSON.stringify(updatedCards);
-      console.log('Saving cards to storage:', jsonValue);
-      await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
-      console.log(`Successfully saved ${updatedCards.length} cards`);
-      // Force a reload to ensure UI is synced with storage
-      setForceUpdateKey(prev => prev + 1);
-      return true;
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedCards));
     } catch (error) {
-      console.error('Failed to save cards:', error);
-      Alert.alert('Error', 'Failed to save cards.');
-      return false;
+      Alert.alert('Error', 'Failed to save cards');
     }
   };
 
   // Add a new card or update existing one
-  const saveCard = async () => {
+  const saveCard = () => {
     if (!question.trim() || !answer.trim()) {
       Alert.alert('Error', 'Question and answer cannot be empty');
       return;
@@ -107,91 +69,38 @@ export default function App() {
       updatedCards = [...cards, { question, answer }];
     }
 
-    const saveSuccess = await saveCards(updatedCards);
-    if (saveSuccess) {
-      setCards(updatedCards);
-      showFeedback(editingCard !== null ? 'Card updated!' : 'Card added!');
-      closeModal();
-    }
+    setCards(updatedCards);
+    saveCards(updatedCards);
+    closeModal();
   };
 
-  // Delete a card - COMPLETE REWRITE of this function
-// Replace your deleteCard function with this:
-const deleteCard = (indexToDelete) => {
-  console.log(`Attempting to delete card at index ${indexToDelete}`);
-  
-  Alert.alert(
-    'Delete Card',
-    'Are you sure you want to delete this card?',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Delete', 
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            console.log('Delete confirmed for index:', indexToDelete);
-            
-            // Get current cards from storage directly
-            const storedCardsJson = await AsyncStorage.getItem(STORAGE_KEY);
-            if (!storedCardsJson) {
-              console.log('No cards in storage to delete');
-              return;
-            }
-            
-            // Parse stored cards
-            const storedCards = JSON.parse(storedCardsJson);
-            console.log('Current stored cards:', storedCards);
-            
-            // Remove the card at indexToDelete
-            const newCards = storedCards.filter((_, i) => i !== indexToDelete);
-            console.log('Cards after deletion:', newCards);
-            
-            // Save back to storage
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newCards));
-            
-            // Update state separately after storage is updated
-            setCards(newCards);
-            
-            // Force complete reload from AsyncStorage
-            setTimeout(() => {
-              loadCards();
-            }, 100);
-            
-          } catch (error) {
-            console.error('Delete operation failed:', error);
-            Alert.alert('Error', 'Failed to delete card. Please try again.');
+  // Delete a card
+  const deleteCard = (index) => {
+    Alert.alert(
+      'Delete Card',
+      'Are you sure you want to delete this card?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            const updatedCards = [...cards];
+            updatedCards.splice(index, 1);
+            setCards(updatedCards);
+            saveCards(updatedCards);
           }
         }
-      }
-    ]
-  );
-};
-
-  // For debugging - add a direct check/clear function
-  const debugClearStorage = async () => {
-    try {
-      await AsyncStorage.clear();
-      console.log('Storage cleared completely');
-      setCards([]);
-      setForceUpdateKey(prev => prev + 1);
-      Alert.alert('Debug', 'Storage cleared');
-    } catch (e) {
-      console.error('Failed to clear storage:', e);
-    }
+      ]
+    );
   };
 
   // Open modal for editing
   const openEditModal = (index) => {
-    if (index >= 0 && index < cards.length) {
-      setEditingCard(index);
-      setQuestion(cards[index].question);
-      setAnswer(cards[index].answer);
-      setModalVisible(true);
-    } else {
-      console.error(`Invalid edit index: ${index}`);
-      Alert.alert('Error', 'Could not edit this card.');
-    }
+    setEditingCard(index);
+    setQuestion(cards[index].question);
+    setAnswer(cards[index].answer);
+    setModalVisible(true);
   };
 
   // Open modal for adding
@@ -244,41 +153,26 @@ const deleteCard = (indexToDelete) => {
     }
   };
 
-  // Render individual card in the list with unique key
+  // Render individual card in the list
   const renderCard = ({ item, index }) => (
-    <View style={styles.card} key={`card-${index}-${forceUpdateKey}`}>
+    <View style={styles.card}>
       <View style={styles.cardContent}>
         <Text style={styles.cardQuestion}>{item.question}</Text>
         <Text style={styles.cardAnswer}>{item.answer}</Text>
       </View>
       <View style={styles.cardActions}>
-        <TouchableOpacity 
-          onPress={() => openEditModal(index)}
-          style={styles.editButton}
-        >
+        <TouchableOpacity onPress={() => openEditModal(index)} style={styles.editButton}>
           <Text style={styles.buttonText}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => deleteCard(index)}
-          style={styles.deleteButton}
-        >
-          <Text style={styles.buttonText}>Delete</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => deleteCard(index)} style={styles.deleteButton}>
+        <Text style={styles.buttonText}>Delete</Text>
+      </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Loading screen
-  if (isLoading) {
-    return (
-      <SafeAreaView style={[styles.container, styles.centerContent]}>
-        <Text>Loading flashcards...</Text>
-      </SafeAreaView>
-    );
-  }
-
   // Study mode screen
-  if (studyMode && cards.length > 0) {
+  if (studyMode) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" />
@@ -323,9 +217,8 @@ const deleteCard = (indexToDelete) => {
         <FlatList
           data={cards}
           renderItem={renderCard}
-          keyExtractor={(_, index) => `flashcard-${index}-${forceUpdateKey}`}
+          keyExtractor={(_, index) => index.toString()}
           style={styles.list}
-          extraData={[cards.length, forceUpdateKey]} // Force re-render
         />
       ) : (
         <View style={styles.emptyState}>
@@ -343,11 +236,6 @@ const deleteCard = (indexToDelete) => {
             <Text style={styles.buttonText}>Study</Text>
           </TouchableOpacity>
         )}
-        
-        {/* Debug button - remove in production */}
-        <TouchableOpacity onPress={debugClearStorage} style={styles.clearButton}>
-          <Text style={styles.buttonText}>Reset All</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Modal for adding/editing cards */}
